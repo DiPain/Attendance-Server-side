@@ -23,6 +23,7 @@ Route::post('getprofile', 'logController@getProfile');
 Route::post('checkExists', 'logController@checkExists');
 Route::post('getAttendance', 'logController@getAtt');
 Route::post('getStats', 'logController@getStats');
+Route::post('uploadImage', 'logController@uploadImage');
 Route::post('getDayEvents', 'logController@getDayEvents');
 Route::post('checkNotification', 'logController@checkNotification');
 

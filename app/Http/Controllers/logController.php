@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use DB;
 use App\User;
 use App\Employee;
 use App\Policies;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Hash;
 
 class logController extends Controller
 {
+
     //===function to get first date of given month
     private function getFirst(String $start){
         if($start[7]=='-'){
@@ -63,6 +65,30 @@ class logController extends Controller
             }
         }
         return $res;
+    }
+
+    public function uploadImage(Request $request){
+        $api_token = $request->api_token;
+        if($api_token!=''){
+            $emp = Employee::where(["api_token"=>$api_token ])->get();
+            if($emp->isNotEmpty()){
+                $id=$emp[0]->id;
+                $name=$emp[0]->f_name;
+                $old_filename=$emp[0]->image;
+                $byteimage = $request->image;
+                $filename =$name.'_'.date('Y_m_d_H_i_s').'.png';
+                $decoded = base64_decode($byteimage);
+                $im = imageCreateFromString($decoded);
+                if (!$im) {
+                    die('Base64 value is not a valid image');
+                }
+                $img_file = 'profiles/'.$filename;
+                imagepng($im, $img_file, 0);
+                DB::table('employees')->where('id', $id)->update(['image' => $filename]);
+                unlink('profiles/'.$old_filename);
+                return 'done';
+            }
+        }
     }
 
     //======events of each day===============
@@ -154,7 +180,6 @@ class logController extends Controller
         $api_token = $request->input('api_token');
         $start = $this->getFirst($request->input('ofDate'));
         $end = $this->getLast($start);
-        
         if($api_token!=''){
             $emp = Employee::select('id')->where(["api_token"=>$api_token ])->get();
             if($emp->isNotEmpty()){
@@ -166,6 +191,11 @@ class logController extends Controller
                     'absences' => $absences,
                     'hours' => $hours[0],
                     'perDay'=> $hours[1],
+                ]);
+            }else{
+                return response()->json([
+                    'success' => 'false',
+                    'error' => 'token expired',
                 ]);
             }
         }
