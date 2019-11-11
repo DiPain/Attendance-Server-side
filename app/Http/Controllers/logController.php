@@ -15,8 +15,11 @@ use App\Leaves;
 use App\Attendance;
 use App\Calendar;
 use Carbon\Carbon;
-use \DateTime;
+use DateTime;
+use DatePeriod;
+use DateInterval;
 use Illuminate\Support\Facades\Hash;
+use App\Notification;
 
 class logController extends Controller
 {
@@ -45,26 +48,50 @@ class logController extends Controller
         return $end;
     }
 
+    private function getTilToday(String $start){
+        if (substr($start,0,7)== Date('Y-m')){
+            return substr(date('Y-m-d'),0,10);
+        }else{
+            return $this->getLast($start);
+        }
+    }
+
+    private function workDaysBetween($start, $end){
+        
+        $wDays = [];
+        $interval = DateInterval::createFromDateString('1 day');
+        $period = new DatePeriod(new DateTime($start), $interval, new DateTime($end));
+        $closedDays = Calendar::select('theDate')->whereRaw(' theDate BETWEEN "'.$start.'" AND "'.$end.'" AND open = 0')->get();
+       
+        foreach ($period as $dt) {
+            array_push( $wDays,  $dt->format("Y-m-d"));
+        }
+        
+        foreach ($closedDays as $dt) {
+            if(in_array($dt['theDate'] , $wDays)){
+                unset($wDays[array_search($dt['theDate'], $wDays)]);
+            } 
+        }
+        return $wDays;
+
+    }
+
     //==========return a list of absent days ===============
     private function absences($start, $end, $id){
-        $workDays = Calendar::select('theDate')->whereRaw(' theDate BETWEEN "'.$start.'" AND "'.$end.'" AND open = 1')->get();
+        // // $start, $end, $id
+        // $start = $request->start;
+        // $end = $request->end;
+        // $id = $request->id;
+        $workDays = $this->workDaysBetween($start, $end);
         $Att = Attendance::whereRaw('io_time BETWEEN "'.$start.'" AND "'.$end.'" AND user_id ="'.$id.'"' )->get();
-        $res = [];
-        foreach($workDays as $workday){
-            $add = true;
-            for($i=0; $i<count($Att); $i++){
-                $idate = Carbon::create($Att[$i]['io_time'])->format('Y M d');
-                $workdate = Carbon::create($workday['theDate'])->format('Y M d');
-                if($idate==$workdate){
-                    $add = false;
-                }
-            }
-            if($add){
-                $add=false;
-                array_push($res, $workday['theDate']);        
+        $absences = [];
+        foreach($Att as $day){
+            $idate = Carbon::create($day['io_time'])->format('Y-m-d');
+            if(in_array($idate, $workDays)){
+                array_splice($workDays,array_search($idate, $workDays),1);        
             }
         }
-        return $res;
+        return $workDays;
     }
 
     public function uploadImage(Request $request){
@@ -179,7 +206,7 @@ class logController extends Controller
     public function getStats(Request $request){
         $api_token = $request->input('api_token');
         $start = $this->getFirst($request->input('ofDate'));
-        $end = $this->getLast($start);
+        $end = $this->getTilToday($start);
         if($api_token!=''){
             $emp = Employee::select('id')->where(["api_token"=>$api_token ])->get();
             if($emp->isNotEmpty()){
@@ -221,7 +248,8 @@ class logController extends Controller
         if($api_token!=''){
             $emp = Employee::where('api_token',$api_token)->get(); 
             if($emp->isNotEmpty()){
-                return $this->polcy();
+                return response()->json(['success' =>'true',
+                  'data'=>$this->polcy()]);
             }else{
                 return response()->json([
                     'success'=>'false',
@@ -262,6 +290,7 @@ class logController extends Controller
                     $ll->reason=$reason; 
                     $ll->save();
                     // $result = Attendance
+
                     return response()->json([
                         'success'=>'true',
                         'lol'=> 'sorry, no table yet'
@@ -316,10 +345,10 @@ class logController extends Controller
     public function getAbsence(Request $request){
         $api_token = $request->input('api_token');
         $start = $this->getFirst($request->input('toCheck'));
-        $end = $this->getLast($start);
-        
+        $end = $this->getTilToday($start);
+     
         if($api_token!=''){
-            $emp = Employee::select('id')->where(["api_token"=>$api_token ])->get();
+            $emp = Employee::where(["api_token"=>$api_token ])->get();
             if($emp->isNotEmpty()){
                 $id=$emp[0]->id;
                 $res = $this->absences($start,$end, $id);
@@ -343,13 +372,26 @@ class logController extends Controller
 
     public function checkNotification(Request $request){
         $api_token = $request->input('api_token');
-        $show = $request->input('show');
         if($api_token!=''){
-            $emp = Employee::where('api_token',$api_token); 
-            if($emp){
-                $result = Notification::all()->orderby('id','DESC')->chunk(5)->get(); 
-                return response()->json($result);
+            $emp = Employee::where(["api_token"=>$api_token ])->get();
+            $id = $emp[0]->id;
+            if($emp->isNotEmpty()){
+                $result = Notification::where('notifiable_id',$id)->orderBy('created_at', 'DESC')->limit(5)->get(); 
+                return response()->json(
+                    [
+                        'success'=>'true',
+                        'data'=>$result]);
+            }else{
+                return response()->json([
+                    'success'=>'false',
+                    'error' => 'expired token'
+                ]);
             }
+            }else{
+            return response()->json([
+                'success'=>'false',
+                'error' => 'empty token'
+            ]);
         }
     }
 
@@ -444,7 +486,6 @@ class logController extends Controller
         if($api_token!=''){
             $result = Employee::where(["api_token"=>$api_token ])->get();
             if($result->isNotEmpty()){
-
                 $dep = Department::select('name')->where(["id"=>$result[0]->dept_id ])->get();
                 if($dep->isNotEmpty()){
                     $result[0]['dept']=$dep[0]->name;
@@ -456,7 +497,6 @@ class logController extends Controller
                         'error'=>'No Dept' 
                     ]);
                 }
-                
             }else{
                 
             }
@@ -518,6 +558,63 @@ class logController extends Controller
             }else{
                 return response()->json( ['result'=>'email'] );
             }
+    }
+
+    private function notifyUsers($title, $message, $image, bool $isTest = False)
+    {
+        $app_id = "08725583-aaf5-4dfd-8d6d-6abc738f5539";
+        $rest_api_key = "ODY4ZTE0ZmQtODQ5ZS00MDE5LThhMjYtYTI0MmM4ZjUwOTUw";
+        $heading = array(
+        "en" => $title
+        );
+        $content = array(
+        "en" => $message
+        );
+        $fields = array(
+        'app_id' => $app_id,
+        'data' => array('just'=>'because'),
+        'contents' => $content,
+        'headings' => $heading,
+        'large_icon' => $image,
+        );
+         
+        if ($isTest) {
+            $fields['included_segments'] = array("Test Users");
+        } else {
+            $fields['included_segments'] = array("Active Users", "Inactive Users");
+        }
+
+        $fields = json_encode($fields);
+        print("\nJSON sent:\n");
+        print($fields);
+         
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://onesignal.com/api/v1/notifications");
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Content-Type: application/json; charset=utf-8',
+        'Authorization: Basic ' . $rest_api_key
+        ));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+         
+        $response = curl_exec($ch);
+        curl_close($ch);
+         
+        $return["allresponses"] = $response;
+        $return = json_encode($return);
+         
+        print("\n\nJSON received:\n");
+        print($return);
+        print("\n");
+    }
+
+    public function send(Request $request){
+        $title = 'aloha';
+        $bod = $request->bod;
+        $this->notifyUsers($title, $bod, 'http://simpleicon.com/wp-content/uploads/cute.png', FALSE);
     }
 }
     

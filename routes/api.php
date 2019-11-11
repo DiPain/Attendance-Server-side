@@ -14,17 +14,18 @@ use Illuminate\Http\Request;
 */
 Route::post('logs', 'logController@login');
 Route::post('logout', 'logController@logout');
+Route::post('getStats', 'logController@getStats');
 Route::post('leaveReq', 'logController@leaveReq');
 Route::post('getLeaves', 'logController@getLeaves');
-Route::post('Policies', 'logController@getPolicies');
 Route::post('getAbsence', 'logController@getAbsence');
 Route::post('changePass', 'logController@changePass');
 Route::post('getprofile', 'logController@getProfile');
+Route::post('getPolicies', 'logController@getPolicies');
 Route::post('checkExists', 'logController@checkExists');
 Route::post('getAttendance', 'logController@getAtt');
-Route::post('getStats', 'logController@getStats');
 Route::post('uploadImage', 'logController@uploadImage');
 Route::post('getDayEvents', 'logController@getDayEvents');
+Route::post('workDays', 'logController@send');
 Route::post('checkNotification', 'logController@checkNotification');
 
 
