@@ -14,7 +14,11 @@ use Illuminate\Http\Request;
 */
 Route::post('logs', 'logController@login');
 Route::post('logout', 'logController@logout');
+Route::post('polcy', 'logController@polcySearch');
+Route::post('events', 'logController@getNextEve');
+Route::post('leaveCat', 'logController@leaveCat');
 Route::post('getStats', 'logController@getStats');
+Route::post('getBeeps', 'logController@getBeeps');
 Route::post('leaveReq', 'logController@leaveReq');
 Route::post('getLeaves', 'logController@getLeaves');
 Route::post('getAbsence', 'logController@getAbsence');
@@ -25,8 +29,14 @@ Route::post('checkExists', 'logController@checkExists');
 Route::post('getAttendance', 'logController@getAtt');
 Route::post('uploadImage', 'logController@uploadImage');
 Route::post('getDayEvents', 'logController@getDayEvents');
-Route::post('workDays', 'logController@send');
+Route::post('pushPlayId', 'logController@setPlayId');
 Route::post('checkNotification', 'logController@checkNotification');
+Route::post('bpdTday', 'logController@beepedToday');
+Route::post('getTotalStats', 'logController@getTotalStats');
+Route::post('q', 'logController@leaveCat');
+Route::post('w', 'logController@passReset');
+
+
 
 
 
